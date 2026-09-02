@@ -29,12 +29,23 @@ public final class CausalStrengthAnalyzer {
         KEYWORDS.put("caused", CausalSignal.STRONG);
         KEYWORDS.put("proves that", CausalSignal.STRONG);
         KEYWORDS.put("confirms that", CausalSignal.STRONG);
+        KEYWORDS.put("responsible for", CausalSignal.STRONG);
+        KEYWORDS.put("blamed for", CausalSignal.STRONG);
+        KEYWORDS.put("to blame for", CausalSignal.STRONG);
+        KEYWORDS.put("gave rise to", CausalSignal.STRONG);
+        KEYWORDS.put("giving rise to", CausalSignal.STRONG);
         // Moderate
         KEYWORDS.put("leads to", CausalSignal.MODERATE);
+        KEYWORDS.put("led to", CausalSignal.MODERATE);
         KEYWORDS.put("results in", CausalSignal.MODERATE);
         KEYWORDS.put("triggers", CausalSignal.MODERATE);
         KEYWORDS.put("drives", CausalSignal.MODERATE);
         KEYWORDS.put("contributes to", CausalSignal.MODERATE);
+        KEYWORDS.put("enabled", CausalSignal.MODERATE);
+        KEYWORDS.put("fueled", CausalSignal.MODERATE);
+        KEYWORDS.put("sparked", CausalSignal.MODERATE);
+        KEYWORDS.put("prompted", CausalSignal.MODERATE);
+        KEYWORDS.put("set off", CausalSignal.MODERATE);
         // Weak / correlational
         KEYWORDS.put("linked to", CausalSignal.WEAK);
         KEYWORDS.put("associated with", CausalSignal.WEAK);

@@ -130,7 +130,9 @@ Full package layout and the reasoning behind each design decision are in [`docs/
 
 ## Accuracy
 
-There's no external ground-truth dataset for "semantic drift" (see Known limitations below), so accuracy here means agreement with hand-labeled expectations, not agreement with an independently verified benchmark — the same honesty tradeoff [the original project brief](docs/ARCHITECTURE.md) called out for Phase B labeling.
+There's no external ground-truth dataset for the full "semantic drift" task this project defines (see Known limitations below) — no one publishes labeled reference-vs-coverage article pairs — so the headline numbers below mean agreement with hand-labeled expectations, not an independently verified benchmark. That's the same honesty tradeoff [the original project brief](docs/ARCHITECTURE.md) called out for Phase B labeling. One dimension, however, *has* been checked against real, professionally-annotated external data — see the second half of this section.
+
+### Internal evaluation (all four dimensions)
 
 `src/test/java/com/veritaspath/eval/AccuracyEvaluationTest.java` runs 11 article pairs across six domains *not* used anywhere else in the test suite or the seeded demo data (sports, corporate earnings, courts, science reporting, weather, local government), each hand-labeled with the expected score range per dimension, and prints a full pass/fail report on every `mvn test` run:
 
@@ -144,11 +146,24 @@ Overall: 27/28 expectations matched (96.4%)
 
 This batch is what actually found two real gaps — sports scores ("28 points") and weather measurements ("10 inches") weren't recognized as numeric claims because the count-context word list was tuned for hard-news vocabulary, and "X caused Y" (bare past tense, no "by") wasn't in the causal-keyword list. Both are fixed in `nlp/NumericClaimExtractor` and `nlp/CausalStrengthAnalyzer`. The one remaining failure — a reference's "seven games" not matching a paraphrase's "seventh straight win" — is a genuine, documented limitation (cardinal/ordinal number words aren't matched to each other), left in the suite on purpose so a future fix has to touch this test deliberately rather than the number quietly changing.
 
+### External validation (Causal-Claim Strength only)
+
+`tools/external-validation/` validates the Causal-Claim Strength primitive against the **Propaganda Techniques Corpus (PTC v2)**, the real, professionally-annotated dataset released for **SemEval-2020 Task 11** (Da San Martino et al., EMNLP-IJCNLP 2019; [zenodo.org/records/3952415](https://zenodo.org/records/3952415)). Full methodology, caveats, and examples are in [`docs/EXTERNAL_VALIDATION.md`](docs/EXTERNAL_VALIDATION.md); the headline result:
+
+```
+RECALL on human-labeled Causal_Oversimplification sentences: 10/208 = 4.8%
+(up from a 1.0% baseline, after two rounds of keyword additions this validation drove)
+Base rate on 500 unannotated sentences: 1.0% (not a false-positive rate -- see doc)
+```
+
+That gap — ~96% agreement on this project's own synthetic test data vs. ~5% recall on real adversarial propaganda text — is the most important accuracy number in this project. It's honest, external evidence for exactly the limitation `docs/ARCHITECTURE.md` already argued from first principles: a keyword matcher structurally cannot catch causal oversimplification expressed through counterfactuals, implicit blame, or rhetorical insinuation rather than an explicit "causes"/"leads to". That's why a fine-tuned transformer (Phase B on the roadmap) is the actual fix, not a longer keyword list — this document proves that claim with a number instead of asserting it.
+
 ## Known limitations
 
 Documented honestly rather than glossed over — see `docs/ARCHITECTURE.md` for the full list, but briefly:
 
 - **Negation isn't handled.** "We cannot say the beverage *causes* headaches" is detected as a *strong* causal claim, because the keyword matcher doesn't see the "cannot say" in front of it. A real fix needs dependency parsing or a small classifier, not more keywords.
+- **The causal-language detector misses most real-world causal oversimplification.** Validated against real SemEval-2020 Task 11 propaganda data: 4.8% recall (see Accuracy above and `docs/EXTERNAL_VALIDATION.md`). It catches explicit "causes"/"leads to"/"responsible for"-style language well but not counterfactuals, implicit blame, or rhetorical insinuation — which is most of how real propaganda actually expresses oversimplified causation.
 - **TF-IDF is a bag-of-words model.** It catches paraphrase overlap well but doesn't understand negation or sentence structure — "the bridge didn't collapse" and "the bridge collapsed" look similar to it. This is a deliberate scope choice (see Architecture doc), not an oversight.
 - **English-only, and tuned for news-style prose.** The abbreviation list, causal-phrase dictionary, and count-context words are hand-curated for the demo domain.
 
