@@ -1,0 +1,150 @@
+# VeritasPath
+
+**A Java/Spring Boot tool that quantifies how far a news article drifts from a reference source — across four measurable dimensions, not a single "bias score."**
+
+> Built as a student project. This README is written to double as an interview reference: what it does, how it works, why it's built this way, and what its limitations are.
+
+---
+
+## The problem
+
+When the same event is covered by five outlets, readers have no fast way to tell *what actually changed* between the wire report and the headline they're reading — a dropped caveat, an inflated number, a quote taken out of context, a "linked to" that quietly became a "causes." Reading five articles side by side to catch this is tedious, and nobody does it. Existing tools rate *outlets* (AllSides, Ad Fontes) by political lean, which doesn't tell you whether *this specific article* changed *this specific fact*.
+
+VeritasPath answers a narrower, more useful question: **given a reference article (a wire report, an official statement, a press release) and a second article covering the same story, exactly where and how much did the second article drift from the first?**
+
+## What it measures
+
+Every comparison is scored across four independent, named dimensions — not one opaque "bias" number:
+
+| Dimension | What it catches | Method |
+|---|---|---|
+| **Quote Fidelity** | Quotes that were dropped, misattributed, or paraphrased away from what was actually said | Extracts quoted spans, matches them across articles with edit-distance (Levenshtein) similarity |
+| **Numeric Accuracy** | Death tolls, percentages, dollar figures, or counts that don't match | Regex + light NLP extraction of figures (digits and spelled-out numbers), normalized and tolerance-matched |
+| **Omission of Content** | Caveats, qualifiers, and context that quietly disappeared | TF-IDF cosine similarity finds reference sentences with no semantic match anywhere in the compared article |
+| **Causal-Claim Strength** | "Associated with" that became "causes" — classic overreach | Rule-based causal-language detector, applied to topically-matched sentence pairs |
+
+Each dimension is scored 0–100 and shown with the specific findings that produced the score (which quote, which figure, which sentence). The four scores are combined into a single weighted **alignment score**, but the dimension breakdown — not the composite — is the point: it tells you *what kind* of drift happened, not just *how much*.
+
+## Screenshots
+
+**Comparing two outlets against a reference wire report:**
+![Comparison results — radar chart and per-dimension findings for two outlets](screenshots/02-results.png)
+
+**Comparison input form:**
+![Input form: reference article, outlets to compare, and demo scenarios](screenshots/01-compare-empty.png)
+
+**History of past comparisons:**
+![History view listing past comparison runs](screenshots/03-history.png)
+
+**How-it-works explainer built into the dashboard:**
+![About view explaining the four scoring dimensions](screenshots/04-about.png)
+
+---
+
+## Quick start
+
+**Prerequisites:** JDK 17+ and Maven (or use the included `mvnw` if present in your environment — this repo uses a system Maven install).
+
+```bash
+git clone <this-repo-url>
+cd VeritasPath
+mvn spring-boot:run
+```
+
+Open **http://localhost:8080**. On first launch the app seeds three demo comparisons (a bridge-collapse wire story, a health-study press release, and a wildfire briefing — see [Demo data](#demo-data)) so the dashboard isn't empty. Click **"Bridge collapse"** (or either other demo chip) on the Compare tab to load a ready-made example, or paste your own reference + comparison article text.
+
+Run the test suite:
+
+```bash
+mvn test
+```
+
+Build a runnable jar:
+
+```bash
+mvn -DskipTests package
+java -jar target/veritaspath.jar
+```
+
+The app stores comparison history in a local H2 file database (`./data/veritaspath.mv.db`, gitignored) — delete that folder to reset history and re-seed the demos on next startup.
+
+---
+
+## API
+
+VeritasPath is a normal REST + static-frontend Spring Boot app; the dashboard is just a client of its own API.
+
+### `POST /api/comparisons`
+
+```bash
+curl -X POST http://localhost:8080/api/comparisons \
+  -H "Content-Type: application/json" \
+  -d '{
+    "reference": { "outletName": "Wire Service", "text": "Officials confirmed 12 people were killed. \"We are still searching the area,\" said the fire marshal." },
+    "comparisons": [
+      { "outletName": "Tabloid Times", "text": "Officials say 18 people died. \"This was a disaster waiting to happen,\" the fire marshal said." }
+    ]
+  }'
+```
+
+Either article can be supplied as `"text"` (paste) or `"url"` (VeritasPath fetches and extracts the article body via Jsoup). Returns a `ComparisonResponse` with a per-outlet `alignmentScore`, the four `dimensions` (each with its own `score` and human-readable `findings`), and sentence counts — and persists the run to history.
+
+### `GET /api/comparisons/history`
+
+Returns the 20 most recent comparison runs (used by the dashboard's History tab).
+
+### `POST /api/articles/preview`
+
+```bash
+curl -X POST http://localhost:8080/api/articles/preview \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com/some-article"}'
+```
+
+Fetches a URL and returns the extracted article text, so the dashboard can show you what it scraped before you submit it for comparison.
+
+---
+
+## Demo data
+
+`src/main/resources/sample-data/` contains three fictional scenarios (invented outlets and officials — not real events or people) hand-built to exercise each dimension:
+
+- **`bridge-collapse/`** — a wire report vs. a faithful outlet (near-perfect score) and a sensationalized outlet (inflated death toll, dropped caveats, fabricated quote, causal overreach)
+- **`energy-drink-study/`** — a research institute's careful, hedged release vs. a blog that drops the "observational, not causal" caveat and upgrades "associated with" to "causes"
+- **`wildfire-evacuation/`** — an emergency-management briefing vs. an outlet that collapses an estimate range into a hard number and drops the "preliminary estimate" caveat
+
+The same text is duplicated in `src/main/resources/static/js/sample-data.js` so the dashboard's demo chips can pre-fill the form without an extra round trip — see that file's header comment if you edit the scenarios.
+
+---
+
+## How it's built
+
+- **Backend:** Java 17, Spring Boot 3 (Web, Data JPA, Validation), Maven
+- **NLP:** hand-implemented, not pulled from a library — sentence segmentation, TF-IDF vectorization, and cosine similarity are all written from scratch in `com.veritaspath.nlp` (~250 lines total) so the scoring logic is transparent and defensible, not a black box. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for why, and where a pretrained model would slot in as a later tier.
+- **Article fetching:** [Jsoup](https://jsoup.org/) for URL → HTML → article-text extraction (readability-style heuristics, no per-outlet scraper rules)
+- **Persistence:** H2 file database via Spring Data JPA (comparison history)
+- **Frontend:** static HTML/CSS/vanilla JS dashboard (no build step), charts via a locally vendored copy of [Chart.js](https://www.chartjs.org/) (`static/js/vendor/chart.umd.js` — vendored rather than CDN-loaded so the app has zero external runtime dependencies and works fully offline)
+- **Tests:** JUnit 5 + AssertJ, 30 tests covering the NLP primitives and the four scoring dimensions individually (`mvn test`)
+
+Full package layout and the reasoning behind each design decision are in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Common interview questions about this project (and honest answers) are in [`docs/INTERVIEW_PREP.md`](docs/INTERVIEW_PREP.md).
+
+## Known limitations
+
+Documented honestly rather than glossed over — see `docs/ARCHITECTURE.md` for the full list, but briefly:
+
+- **Negation isn't handled.** "We cannot say the beverage *causes* headaches" is detected as a *strong* causal claim, because the keyword matcher doesn't see the "cannot say" in front of it. A real fix needs dependency parsing or a small classifier, not more keywords.
+- **TF-IDF is a bag-of-words model.** It catches paraphrase overlap well but doesn't understand negation or sentence structure — "the bridge didn't collapse" and "the bridge collapsed" look similar to it. This is a deliberate scope choice (see Architecture doc), not an oversight.
+- **English-only, and tuned for news-style prose.** The abbreviation list, causal-phrase dictionary, and count-context words are hand-curated for the demo domain.
+
+## Roadmap (explicitly out of scope for this build)
+
+This project deliberately stops at the classical-NLP tier. If continued, the natural next steps — in the same order the original project brief phased them — are:
+
+1. **Phase B — fine-tuned transformer.** Replace TF-IDF cosine similarity with a BERT-family model fine-tuned per dimension, to fix the negation/paraphrase blind spots above.
+2. **Phase C — zero-shot LLM scoring.** Structured JSON prompting as a third, comparable tier — likely stronger on inferential overreach (Causal-Claim Strength), likely no better than the classical baseline on Numeric Accuracy.
+3. **Cryptographic anchor ingestion.** Generate a C2PA manifest (via `c2pa-rs`/`c2pa-js` — real tooling, not homebrew crypto) for the reference document so "reference" means *cryptographically verified*, not just "the first article you pasted in."
+4. **Cascade attribution.** Given 5+ articles on one story, infer a citation graph (who copied whom) and attribute drift to the specific hop where it entered, instead of only ever comparing pairwise against one reference.
+
+## License
+
+MIT — see [`LICENSE`](LICENSE).
