@@ -124,9 +124,25 @@ The same text is duplicated in `src/main/resources/static/js/sample-data.js` so 
 - **Article fetching:** [Jsoup](https://jsoup.org/) for URL → HTML → article-text extraction (readability-style heuristics, no per-outlet scraper rules)
 - **Persistence:** H2 file database via Spring Data JPA (comparison history)
 - **Frontend:** static HTML/CSS/vanilla JS dashboard (no build step), charts via a locally vendored copy of [Chart.js](https://www.chartjs.org/) (`static/js/vendor/chart.umd.js` — vendored rather than CDN-loaded so the app has zero external runtime dependencies and works fully offline)
-- **Tests:** JUnit 5 + AssertJ, 30 tests covering the NLP primitives and the four scoring dimensions individually (`mvn test`)
+- **Tests:** JUnit 5 + AssertJ, 33 tests — 27 unit tests for the NLP primitives and scoring dimensions, plus an accuracy evaluation (see below) — all run via `mvn test`
 
 Full package layout and the reasoning behind each design decision are in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Common interview questions about this project (and honest answers) are in [`docs/INTERVIEW_PREP.md`](docs/INTERVIEW_PREP.md).
+
+## Accuracy
+
+There's no external ground-truth dataset for "semantic drift" (see Known limitations below), so accuracy here means agreement with hand-labeled expectations, not agreement with an independently verified benchmark — the same honesty tradeoff [the original project brief](docs/ARCHITECTURE.md) called out for Phase B labeling.
+
+`src/test/java/com/veritaspath/eval/AccuracyEvaluationTest.java` runs 11 article pairs across six domains *not* used anywhere else in the test suite or the seeded demo data (sports, corporate earnings, courts, science reporting, weather, local government), each hand-labeled with the expected score range per dimension, and prints a full pass/fail report on every `mvn test` run:
+
+```
+Overall: 27/28 expectations matched (96.4%)
+  Quote Fidelity           7/7  (100.0%)
+  Numeric Accuracy         7/8  (87.5%)
+  Omission of Content      9/9  (100.0%)
+  Causal-Claim Strength    4/4  (100.0%)
+```
+
+This batch is what actually found two real gaps — sports scores ("28 points") and weather measurements ("10 inches") weren't recognized as numeric claims because the count-context word list was tuned for hard-news vocabulary, and "X caused Y" (bare past tense, no "by") wasn't in the causal-keyword list. Both are fixed in `nlp/NumericClaimExtractor` and `nlp/CausalStrengthAnalyzer`. The one remaining failure — a reference's "seven games" not matching a paraphrase's "seventh straight win" — is a genuine, documented limitation (cardinal/ordinal number words aren't matched to each other), left in the suite on purpose so a future fix has to touch this test deliberately rather than the number quietly changing.
 
 ## Known limitations
 

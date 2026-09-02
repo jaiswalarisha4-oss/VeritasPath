@@ -26,6 +26,7 @@ public final class CausalStrengthAnalyzer {
         KEYWORDS.put("directly causes", CausalSignal.STRONG);
         KEYWORDS.put("causes", CausalSignal.STRONG);
         KEYWORDS.put("caused by", CausalSignal.STRONG);
+        KEYWORDS.put("caused", CausalSignal.STRONG);
         KEYWORDS.put("proves that", CausalSignal.STRONG);
         KEYWORDS.put("confirms that", CausalSignal.STRONG);
         // Moderate
