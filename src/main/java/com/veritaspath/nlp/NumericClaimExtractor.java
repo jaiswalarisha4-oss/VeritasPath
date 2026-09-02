@@ -30,7 +30,13 @@ public final class NumericClaimExtractor {
             "people", "person", "killed", "dead", "died", "deaths", "injured",
             "wounded", "residents", "victims", "structures", "homes", "acres",
             "firefighters", "officers", "years", "dollars", "percent", "cases",
-            "students", "workers", "employees", "families"
+            "students", "workers", "employees", "families",
+            // sports / general counts
+            "points", "goals", "runs", "games", "wins", "losses", "seats", "votes",
+            // weather / measurements
+            "inches", "feet", "miles", "degrees", "mph",
+            // general time/quantity units that often carry a reportable figure
+            "months", "days", "hours", "minutes", "jobs", "arrests"
     );
 
     // [currency]digits[,digits]*[.digits] [multiplier]? [%]?

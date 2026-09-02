@@ -50,4 +50,16 @@ class NumericClaimExtractorTest {
         List<NumericClaim> claims = NumericClaimExtractor.extract("They met on day 5 of the investigation.");
         assertThat(claims).isEmpty();
     }
+
+    @Test
+    void extractsSportsScoreWithCountContext() {
+        List<NumericClaim> claims = NumericClaimExtractor.extract("Owens scored 28 points in the win.");
+        assertThat(claims).extracting(NumericClaim::normalizedValue).contains(28.0);
+    }
+
+    @Test
+    void extractsWeatherMeasurementWithCountContext() {
+        List<NumericClaim> claims = NumericClaimExtractor.extract("The storm will bring 10 inches of rain.");
+        assertThat(claims).extracting(NumericClaim::normalizedValue).contains(10.0);
+    }
 }

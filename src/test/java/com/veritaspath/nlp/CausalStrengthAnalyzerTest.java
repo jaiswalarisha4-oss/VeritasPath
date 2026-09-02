@@ -34,4 +34,11 @@ class CausalStrengthAnalyzerTest {
     void sentencesWithNoCausalLanguageProduceNoSignal() {
         assertThat(CausalStrengthAnalyzer.extract("The bridge is 40 years old and spans the river.")).isEmpty();
     }
+
+    @Test
+    void detectsBarePastTenseCaused() {
+        List<CausalSignal> signals = CausalStrengthAnalyzer.extract("Heavy demand caused the price spike.");
+        assertThat(signals).hasSize(1);
+        assertThat(signals.get(0).strength()).isEqualTo(CausalSignal.STRONG);
+    }
 }
