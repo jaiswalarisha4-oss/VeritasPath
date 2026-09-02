@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VeritasPath — News Source Comparison</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <!-- Chart.js is vendored locally (js/vendor/chart.umd.js) rather than pulled from a CDN,
+       so the dashboard has zero external runtime dependencies and works offline. -->
+  <script src="js/vendor/chart.umd.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">VP</span>
+      <div>
+        <h1>VeritasPath</h1>
+        <p class="tagline">Quantifying how far news coverage drifts from a reference source</p>
+      </div>
+    </div>
+    <nav class="topnav">
+      <button class="nav-btn active" data-view="compare">Compare</button>
+      <button class="nav-btn" data-view="history">History</button>
+      <button class="nav-btn" data-view="about">How it works</button>
+    </nav>
+  </header>
+
+  <main class="layout">
+
+    <!-- ===== COMPARE VIEW ===== -->
+    <section id="view-compare" class="view active">
+      <div class="grid">
+        <div class="panel form-panel">
+          <div class="panel-header">
+            <h2>1. Reference article</h2>
+            <p class="hint">The source you're measuring drift against — a wire report, official statement, or press release.</p>
+          </div>
+
+          <label class="field">
+            <span>Outlet / source name</span>
+            <input type="text" id="ref-outlet" placeholder="e.g. Continental Wire" />
+          </label>
+
+          <div class="source-toggle" data-target="ref">
+            <button class="toggle-btn active" data-mode="text">Paste text</button>
+            <button class="toggle-btn" data-mode="url">Fetch from URL</button>
+          </div>
+
+          <label class="field mode-text" data-target="ref">
+            <span>Article text</span>
+            <textarea id="ref-text" rows="8" placeholder="Paste the full article text here…"></textarea>
+          </label>
+
+          <label class="field mode-url hidden" data-target="ref">
+            <span>Article URL</span>
+            <input type="text" id="ref-url" placeholder="https://…" />
+            <button type="button" class="secondary-btn" id="ref-fetch-btn">Fetch preview</button>
+          </label>
+
+          <div class="panel-header spaced">
+            <h2>2. Coverage to compare</h2>
+            <p class="hint">Add one or more outlet articles covering the same story.</p>
+          </div>
+
+          <div id="comparison-list"></div>
+          <button type="button" class="secondary-btn" id="add-comparison-btn">+ Add another outlet</button>
+
+          <div class="demo-row">
+            <span class="hint">Or try a demo:</span>
+            <button type="button" class="chip-btn" data-demo="bridge">Bridge collapse</button>
+            <button type="button" class="chip-btn" data-demo="drink">Health study</button>
+            <button type="button" class="chip-btn" data-demo="fire">Wildfire evacuation</button>
+          </div>
+
+          <button type="button" class="primary-btn" id="run-btn">Run comparison</button>
+          <p id="form-error" class="error-msg hidden"></p>
+        </div>
+
+        <div class="panel results-panel">
+          <div class="panel-header">
+            <h2>Results</h2>
+            <p class="hint" id="results-hint">Run a comparison to see per-outlet drift scores here.</p>
+          </div>
+          <div id="results-container"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== HISTORY VIEW ===== -->
+    <section id="view-history" class="view">
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Past comparisons</h2>
+          <p class="hint">The most recent 20 comparison runs, including the demo data seeded on first launch.</p>
+        </div>
+        <div id="history-container"></div>
+      </div>
+    </section>
+
+    <!-- ===== ABOUT VIEW ===== -->
+    <section id="view-about" class="view">
+      <div class="panel about-panel">
+        <h2>How VeritasPath scores an article</h2>
+        <p>VeritasPath does not rate outlets or infer a political lean. It measures how far one article's claims
+          drift from a reference article about the same event, across four independently scored dimensions:</p>
+        <div class="dimension-cards">
+          <div class="dim-card">
+            <h3>Quote Fidelity</h3>
+            <p>Extracts directly-quoted spans from both articles and matches them with edit-distance similarity.
+              Flags quotes that are missing or paraphrased away from the original wording.</p>
+          </div>
+          <div class="dim-card">
+            <h3>Numeric Accuracy</h3>
+            <p>Extracts figures (tolls, percentages, dollar amounts, counts) and checks whether each reference
+              figure has a matching value in the compared article, within a small rounding tolerance.</p>
+          </div>
+          <div class="dim-card">
+            <h3>Omission of Content</h3>
+            <p>Uses TF-IDF cosine similarity to find reference sentences — caveats, qualifiers, context — that
+              have no semantically similar counterpart anywhere in the compared article.</p>
+          </div>
+          <div class="dim-card">
+            <h3>Causal-Claim Strength</h3>
+            <p>Detects language like "linked to" vs. "causes" and flags cases where a topically-matched claim
+              was reported with stronger causal language than the reference used.</p>
+          </div>
+        </div>
+        <p class="hint">All four dimensions are classical, explainable NLP (TF-IDF + rule-based extraction) — no
+          external model download required. See <code>docs/ARCHITECTURE.md</code> for where a fine-tuned
+          transformer or an LLM-judge tier would extend this.</p>
+      </div>
+    </section>
+
+  </main>
+
+  <template id="comparison-row-template">
+    <div class="comparison-row">
+      <div class="row-head">
+        <input type="text" class="cmp-outlet" placeholder="e.g. Metro Herald" />
+        <button type="button" class="icon-btn remove-btn" title="Remove">✕</button>
+      </div>
+      <div class="source-toggle" data-target="cmp">
+        <button class="toggle-btn active" data-mode="text">Paste text</button>
+        <button class="toggle-btn" data-mode="url">Fetch from URL</button>
+      </div>
+      <textarea class="cmp-text mode-text" rows="6" placeholder="Paste the outlet's article text here…"></textarea>
+      <div class="mode-url hidden">
+        <input type="text" class="cmp-url" placeholder="https://…" />
+        <button type="button" class="secondary-btn cmp-fetch-btn">Fetch preview</button>
+      </div>
+    </div>
+  </template>
+
+  <template id="result-card-template">
+    <div class="result-card">
+      <div class="result-head">
+        <h3 class="result-outlet"></h3>
+        <div class="score-badge"><span class="score-value"></span><span class="score-max">/100</span></div>
+      </div>
+      <canvas class="radar-canvas"></canvas>
+      <div class="dimension-findings"></div>
+    </div>
+  </template>
+
+  <script src="js/sample-data.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
