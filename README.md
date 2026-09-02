@@ -146,17 +146,18 @@ Overall: 27/28 expectations matched (96.4%)
 
 This batch is what actually found two real gaps — sports scores ("28 points") and weather measurements ("10 inches") weren't recognized as numeric claims because the count-context word list was tuned for hard-news vocabulary, and "X caused Y" (bare past tense, no "by") wasn't in the causal-keyword list. Both are fixed in `nlp/NumericClaimExtractor` and `nlp/CausalStrengthAnalyzer`. The one remaining failure — a reference's "seven games" not matching a paraphrase's "seventh straight win" — is a genuine, documented limitation (cardinal/ordinal number words aren't matched to each other), left in the suite on purpose so a future fix has to touch this test deliberately rather than the number quietly changing.
 
-### External validation (Causal-Claim Strength only)
+### External validation (all four dimensions)
 
-`tools/external-validation/` validates the Causal-Claim Strength primitive against the **Propaganda Techniques Corpus (PTC v2)**, the real, professionally-annotated dataset released for **SemEval-2020 Task 11** (Da San Martino et al., EMNLP-IJCNLP 2019; [zenodo.org/records/3952415](https://zenodo.org/records/3952415)). Full methodology, caveats, and examples are in [`docs/EXTERNAL_VALIDATION.md`](docs/EXTERNAL_VALIDATION.md); the headline result:
+`tools/external-validation/` validates every dimension's underlying primitive against real, independently published, human- or professionally-annotated data — not test data this project wrote itself. Full methodology, exact numbers, and scope caveats (none of these benchmarks perform VeritasPath's actual two-article comparison task; each validates the narrower primitive a dimension is built on) are in [`docs/EXTERNAL_VALIDATION.md`](docs/EXTERNAL_VALIDATION.md):
 
-```
-RECALL on human-labeled Causal_Oversimplification sentences: 10/208 = 4.8%
-(up from a 1.0% baseline, after two rounds of keyword additions this validation drove)
-Base rate on 500 unannotated sentences: 1.0% (not a false-positive rate -- see doc)
-```
+| Dimension | Benchmark | Result |
+|---|---|---|
+| Causal-Claim Strength | SemEval-2020 Task 11 (PTC v2) — [zenodo.org/records/3952415](https://zenodo.org/records/3952415) | **4.8% recall** on real propaganda (up from a 1.0% baseline) |
+| Quote Fidelity | STS Benchmark (SemEval-2017 Task 1) | Pearson r=0.41; **19.2%** of true paraphrases wrongly scored "missing" |
+| Omission of Content | STS Benchmark (same data) | Pearson r=0.66; **97.9%** of true paraphrases correctly pass the threshold |
+| Numeric Accuracy | Numeracy-600K (ACL 2019) | **37.5%** adjusted recall on real headline numerals |
 
-That gap — ~96% agreement on this project's own synthetic test data vs. ~5% recall on real adversarial propaganda text — is the most important accuracy number in this project. It's honest, external evidence for exactly the limitation `docs/ARCHITECTURE.md` already argued from first principles: a keyword matcher structurally cannot catch causal oversimplification expressed through counterfactuals, implicit blame, or rhetorical insinuation rather than an explicit "causes"/"leads to". That's why a fine-tuned transformer (Phase B on the roadmap) is the actual fix, not a longer keyword list — this document proves that claim with a number instead of asserting it.
+The pattern across three of the four: a method that scores ~96–100% on this project's own synthetic test data drops sharply against real, naturally-varied text — not from a bug, but because keyword matching and character edit-distance are structurally blind to paraphrase, negation, and implicit meaning. This is honest, external evidence for exactly the limitation `docs/ARCHITECTURE.md` already argued from first principles, now backed by numbers instead of an assertion. Notably, Omission of Content's TF-IDF cosine primitive is the one that held up well externally (r=0.66) — bag-of-words content-word overlap is a genuinely more robust signal here than character- or keyword-level matching. For Quote Fidelity, the natural fix (lowering the "missing" threshold) was checked against real data before touching any code, and rejected — see the doc for why. That's why a fine-tuned transformer (Phase B on the roadmap) is the actual fix for the other three, not a bigger keyword list or a moved threshold.
 
 ## Known limitations
 
@@ -164,7 +165,8 @@ Documented honestly rather than glossed over — see `docs/ARCHITECTURE.md` for 
 
 - **Negation isn't handled.** "We cannot say the beverage *causes* headaches" is detected as a *strong* causal claim, because the keyword matcher doesn't see the "cannot say" in front of it. A real fix needs dependency parsing or a small classifier, not more keywords.
 - **The causal-language detector misses most real-world causal oversimplification.** Validated against real SemEval-2020 Task 11 propaganda data: 4.8% recall (see Accuracy above and `docs/EXTERNAL_VALIDATION.md`). It catches explicit "causes"/"leads to"/"responsible for"-style language well but not counterfactuals, implicit blame, or rhetorical insinuation — which is most of how real propaganda actually expresses oversimplified causation.
-- **TF-IDF is a bag-of-words model.** It catches paraphrase overlap well but doesn't understand negation or sentence structure — "the bridge didn't collapse" and "the bridge collapsed" look similar to it. This is a deliberate scope choice (see Architecture doc), not an oversight.
+- **Quote Fidelity's Levenshtein similarity can't cleanly separate "paraphrased" from "unrelated."** Validated against STS Benchmark: 19.2% of genuinely equivalent sentence pairs would score as a "missing" quote rather than "altered." Checked whether lowering the threshold would help — it wouldn't (unrelated sentences reach similar Levenshtein scores at the 95th percentile) — so this is left as a documented limitation rather than a moved threshold that trades one error for another.
+- **TF-IDF is a bag-of-words model.** It catches paraphrase overlap well but doesn't understand negation or sentence structure — "the bridge didn't collapse" and "the bridge collapsed" look similar to it. This is a deliberate scope choice (see Architecture doc), not an oversight. It's also the strongest-performing primitive of the four under external validation (STS Benchmark Pearson r=0.66) — bag-of-words content overlap is a more robust signal than character- or keyword-level matching for this kind of task.
 - **English-only, and tuned for news-style prose.** The abbreviation list, causal-phrase dictionary, and count-context words are hand-curated for the demo domain.
 
 ## Roadmap (explicitly out of scope for this build)

@@ -1,69 +1,106 @@
-# External validation against SemEval-2020 Task 11
+# External validation
 
-This tool validates `com.veritaspath.nlp.CausalStrengthAnalyzer` — the
-keyword-based causal-language detector underneath VeritasPath's
-**Causal-Claim Strength** dimension — against real, professionally
-annotated data, instead of only the hand-labeled synthetic pairs in
-`src/test/java/com/veritaspath/eval/AccuracyEvaluationTest.java`.
+VeritasPath's internal accuracy numbers (`AccuracyEvaluationTest`) are agreement with
+hand-labeled test data written for this project — a real, documented limitation
+(see `docs/ARCHITECTURE.md`). This folder validates all four scoring dimensions'
+underlying primitives against real, independently published, human- or
+professionally-annotated data instead.
 
-**Read [`docs/EXTERNAL_VALIDATION.md`](../../docs/EXTERNAL_VALIDATION.md)
-first** for the full methodology, results, and — most importantly — the
-scope caveats on what this does and does not prove. The short version:
-recall on real annotated propaganda text is **4.8%** (up from a 1.0%
-baseline before this validation drove two rounds of keyword additions),
-far below the ~96% this project measures on its own synthetic test data.
-That gap is the point of running this: it's honest, external evidence for
-why a fine-tuned model (Phase B on the roadmap) is necessary, not just an
-assertion.
+**Read [`docs/EXTERNAL_VALIDATION.md`](../../docs/EXTERNAL_VALIDATION.md) first**
+for the full methodology, exact numbers, and — most importantly — the scope
+caveats for each one. None of these benchmarks perform VeritasPath's actual
+task (comparing a reference article to a second article across four named
+dimensions); no such benchmark exists publicly. Each one validates the
+narrower primitive a dimension is built on, against real data nobody on this
+project wrote or curated. Headline results:
 
-## Why the corpus isn't in this repository
+| Dimension | Benchmark | What's validated | Result |
+|---|---|---|---|
+| Causal-Claim Strength | SemEval-2020 Task 11 (PTC v2) | Does the causal-language detector notice real, human-labeled propaganda? | **4.8% recall** (up from 1.0%) |
+| Quote Fidelity | STS Benchmark (SemEval-2017 Task 1) | Does Levenshtein similarity track human judgment of "same statement, different wording"? | **Pearson r = 0.41**; 19.2% of true paraphrases misclassified as "missing" |
+| Omission of Content | STS Benchmark (same data) | Does TF-IDF cosine similarity track human similarity judgment? | **Pearson r = 0.66**; 97.9% of true paraphrases correctly clear the omission threshold |
+| Numeric Accuracy | Numeracy-600K (ACL 2019) | Does the extractor find real numerals in real headlines? | **37.5%** adjusted recall (raw 35.7%; most of the gap is benchmark-representation differences, not bugs — see doc) |
 
-The Propaganda Techniques Corpus (PTC v2) consists of excerpts from
-copyrighted news articles collected from 48 outlets. Its authors released
-it for research use through an official channel (Zenodo), not for
-open-ended redistribution — so this repository ships the *validation
-code*, not the *corpus*. Download it yourself and point the tool at it.
+None of the datasets are committed to this repository — they're either
+copyrighted news text released for research use only (PTC v2), or simply
+much cleaner to fetch fresh than to vendor. Each tool below documents exactly
+how to get its data and reproduce the numbers above.
 
-## Reproducing this validation
+## 1. Causal-Claim Strength — `SemEvalCausalValidation.java`
 
-1. Download the corpus from **https://zenodo.org/records/3952415**
-   (the `datasets.tgz`/`datasetsv2.tgz` file — Propaganda Techniques
-   Corpus v2, used for SemEval-2020 Task 11).
-2. Extract it. You should get a `datasets/` folder containing
-   `train-articles/`, `train-task1-SI.labels`, `train-task2-TC.labels`,
-   etc. (Only the `train` split has real gold labels; `dev-task-TC-template.out`
-   is a masked template used for the original competition leaderboard and
-   has no usable labels.)
-3. From the repository root, build the project once so the compiled
-   classes are on the classpath:
-   ```bash
-   mvn -q -DskipTests compile
-   ```
-4. Compile and run this tool, pointing it at the folder that *contains*
-   `datasets/` (i.e. the parent of the extracted folder — the tool defaults
-   to looking for `./datasets` relative to wherever you run it from):
-   ```bash
+Validates `CausalStrengthAnalyzer` against SemEval-2020 Task 11's Propaganda
+Techniques Corpus (PTC v2).
+
+1. Download from **https://zenodo.org/records/3952415** (the
+   `datasets.tgz`/`datasetsv2.tgz` file).
+2. Extract it — you should get a `datasets/` folder with `train-articles/`,
+   `train-task1-SI.labels`, `train-task2-TC.labels`, etc.
+3. From the repo root: `mvn -q -DskipTests compile`
+4. ```bash
    cd tools/external-validation
-   javac -cp ../../target/classes -d /tmp/semeval-out SemEvalCausalValidation.java
-   java -cp "../../target/classes:/tmp/semeval-out" SemEvalCausalValidation /path/to/folder/containing/datasets
+   javac -cp ../../target/classes -d /tmp/out SemEvalCausalValidation.java
+   java -cp "../../target/classes:/tmp/out" SemEvalCausalValidation /path/to/folder/containing/datasets
    ```
-5. It prints: total `Causal_Oversimplification` instances found, recall
-   against them, a strength-tier breakdown of what it did detect, a
-   sample of true positives and false negatives, and a base-rate check on
-   unannotated sentences from the same articles.
 
-## What this validates, and what it doesn't
+## 2. Numeric Accuracy — `Numeracy600KValidation.java`
 
-- **Validates:** whether `CausalStrengthAnalyzer.extract()` — a single-text
-  primitive — notices causal-language framing in real sentences that
-  professional annotators independently flagged as an oversimplified
-  causal claim.
-- **Does not validate:** VeritasPath's actual product behavior, which is
-  `ComparisonService` flagging "overreach" when a *second* article's
-  causal language is *stronger* than a *reference* article's for the
-  *same, topically-matched claim*. SemEval-2020 Task 11 has no
-  paired-article structure, so there is nothing in this corpus that
-  exercises that comparison logic.
-- **Says nothing about** the other three VeritasPath dimensions (Quote
-  Fidelity, Numeric Accuracy, Omission of Content) — this corpus has no
-  ground truth for quotes, figures, or omitted content at all.
+Validates `NumericClaimExtractor` against Numeracy-600K's article-titles
+subset (Chen, Huang, Takamura, Chen, ACL 2019; CC0 public domain, unlike the
+paper's other "market comments" subset, which is Refinitiv-owned).
+
+1. Download `Numeracy_600K_article_title.zip` from
+   **https://github.com/aistairc/Numeracy-600K** and unzip it — you'll get
+   `Numeracy_600K_article_title.json` (~600K headlines with a gold numeral
+   span and offset each).
+2. Build a sample TSV (the full file is ~100MB; a random sample of a few
+   thousand rows is statistically sufficient and much faster to run):
+   ```bash
+   python3 - <<'EOF'
+   import json, random, csv
+   with open("Numeracy_600K_article_title.json", encoding="utf-8") as f:
+       data = json.load(f)
+   random.seed(42)
+   sample = random.sample(data, 4000)
+   with open("sample.tsv", "w", encoding="utf-8", newline="") as out:
+       w = csv.writer(out, delimiter="\t")
+       w.writerow(["title", "number", "offset", "length", "magnitude"])
+       for row in sample:
+           w.writerow([row["title"].replace("\t", " "), row["number"], row["offset"], row["length"], row["magnitude"]])
+   EOF
+   ```
+3. ```bash
+   javac -cp ../../target/classes -d /tmp/out Numeracy600KValidation.java
+   java -cp "../../target/classes:/tmp/out" Numeracy600KValidation sample.tsv
+   ```
+
+## 3. Quote Fidelity & Omission of Content — `StsbSimilarityValidation.java`
+
+Validates both the Levenshtein-similarity primitive (Quote Fidelity) and the
+TF-IDF cosine-similarity primitive (Omission of Content) against the STS
+Benchmark — Cer, Diab, Agirre, Lopez-Gazpio, Specia, "SemEval-2017 Task 1:
+Semantic Textual Similarity Multilingual and Crosslingual Focused
+Evaluation" — one of the standard, widely-cited human-annotated
+sentence-similarity benchmarks in NLP.
+
+1. Download the English test split (the original STS Benchmark data,
+   packaged alongside machine-translated variants for other languages):
+   ```bash
+   curl -O https://raw.githubusercontent.com/PhilipMay/stsb-multi-mt/main/data/stsb-en-test.csv
+   ```
+2. Convert to a clean tab-separated file (the source CSV has quoted fields
+   with embedded commas):
+   ```bash
+   python3 - <<'EOF'
+   import csv
+   with open("stsb-en-test.csv", newline="", encoding="utf-8") as f:
+       rows = list(csv.reader(f))
+   with open("stsb_clean.tsv", "w", encoding="utf-8", newline="") as out:
+       for r in rows:
+           if len(r) == 3:
+               out.write(f"{r[0].strip()}\t{r[1].strip()}\t{r[2]}\n")
+   EOF
+   ```
+3. ```bash
+   javac -cp ../../target/classes -d /tmp/out StsbSimilarityValidation.java
+   java -cp "../../target/classes:/tmp/out" StsbSimilarityValidation stsb_clean.tsv
+   ```
