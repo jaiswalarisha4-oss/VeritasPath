@@ -2,7 +2,7 @@
 
 **A Java/Spring Boot tool that quantifies how far a news article drifts from a reference source — across four measurable dimensions, not a single "bias score."**
 
-> Built as a student project. This README is written to double as an interview reference: what it does, how it works, why it's built this way, and what its limitations are.
+> Built as a student project. This README explains what it does, how it works, why it's built this way, and what its limitations are.
 
 ---
 
@@ -126,7 +126,7 @@ The same text is duplicated in `src/main/resources/static/js/sample-data.js` so 
 - **Frontend:** static HTML/CSS/vanilla JS dashboard (no build step), charts via a locally vendored copy of [Chart.js](https://www.chartjs.org/) (`static/js/vendor/chart.umd.js` — vendored rather than CDN-loaded so the app has zero external runtime dependencies and works fully offline)
 - **Tests:** JUnit 5 + AssertJ, 33 tests — 27 unit tests for the NLP primitives and scoring dimensions, plus an accuracy evaluation (see below) — all run via `mvn test`
 
-Full package layout and the reasoning behind each design decision are in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Common interview questions about this project (and honest answers) are in [`docs/INTERVIEW_PREP.md`](docs/INTERVIEW_PREP.md).
+Full package layout and the reasoning behind each design decision are in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Accuracy
 
