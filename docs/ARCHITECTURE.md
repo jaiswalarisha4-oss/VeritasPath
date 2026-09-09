@@ -1,6 +1,6 @@
 # Architecture
 
-This document explains how VeritasPath is put together and, more importantly, *why* — the design decisions a reviewer or interviewer would ask about.
+This document explains how VeritasPath is put together and, more importantly, *why* — the design decisions a reviewer would ask about.
 
 ## Request flow
 
